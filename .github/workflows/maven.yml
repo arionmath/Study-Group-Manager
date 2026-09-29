@@ -8,9 +8,7 @@ on:
 
 jobs:
   test:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v4
     - name: Set up JDK 8
@@ -34,6 +32,42 @@ jobs:
       - name: Rodar Semgrep
         run: semgrep scan --config p/java --config p/owasp-top-ten --exclude src/test        
 
+      - name: Salvar relatório
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep.json
+          
+
+            # upload-dd:
+            #   name: Enviar para DefectDojo
+            #   needs: semgrep
+            #   runs-on: ubuntu-latest
+            #   steps:
+            #     - name: download relatório gerado anteriormente
+            #       uses: actions/download-artifact@v4
+            #       with:
+            #         name: semgrep-report
+            #     - name: Importar no DefectDojo
+            #       env:
+            #         DD_URL: ${{ secrets.DD_URL }}
+            #         DD_API_KEY: ${{ secrets.DD_API_KEY }}
+            #       run: |
+            #         curl -sS --fail-with-body -X POST "$DD_URL/api/v2/reimport-scan/" \
+            #           -H "Authorization: Token $DD_API_KEY" \
+            #           -F "scan_type=Semgrep JSON Report" \
+            #           -F "file=@semgrep.json" \
+            #           -F "product_name=Study-Group-Manager" \
+            #           -F "engagement_name=CI" \
+            #           -F "test_title=Semgrep SAST" \
+            #           -F "product_type_name=Estudos" \                                        
+            #           -F "auto_create_context=true" \
+            #           -F "branch_tag=${{ github.ref_name }}" \
+            #           -F "commit_hash=${{ github.sha }}" \
+            #           -F "active=true" \
+            #           -F "verified=false" \
+            #           -F "close_old_findings=true"          
+            #
   sbom:
     name: SBOM (cdxgen)
     needs: test
