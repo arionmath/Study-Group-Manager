@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Rodar Semgrep
-        run: semgrep scan --config p/java --config p/owasp-top-ten --exclude src/test        
+        run: semgrep scan --config p/java --config p/owasp-top-ten --exclude src/test --json -o semgrep.json       
 
       - name: Salvar relatório
         uses: actions/upload-artifact@v4
