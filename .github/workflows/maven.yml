@@ -5,20 +5,21 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 8
-      uses: actions/setup-java@v4
-      with:
-        java-version: '8'
-        distribution: 'temurin'
-        cache: maven
-    - name: Test with Maven
-      run: mvn -B test --file pom.xml
+      - uses: actions/checkout@v4
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+      - name: Test with Maven
+        run: mvn -B test --file pom.xml
 
   semgrep:
     name: SAST (Semgrep)
@@ -30,46 +31,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Rodar Semgrep
-        run: semgrep scan --config p/java --config p/owasp-top-ten --exclude src/test --json -o semgrep.json       
-
+        run: semgrep scan --config p/java --config p/owasp-top-ten --exclude src/test --json -o semgrep.json
       - name: Salvar relatório
         uses: actions/upload-artifact@v4
         with:
           name: semgrep-report
           path: semgrep.json
-          
+          if-no-files-found: error
 
-            # upload-dd:
-            #   name: Enviar para DefectDojo
-            #   needs: semgrep
-            #   runs-on: ubuntu-latest
-            #   steps:
-            #     - name: download relatório gerado anteriormente
-            #       uses: actions/download-artifact@v4
-            #       with:
-            #         name: semgrep-report
-            #     - name: Importar no DefectDojo
-            #       env:
-            #         DD_URL: ${{ secrets.DD_URL }}
-            #         DD_API_KEY: ${{ secrets.DD_API_KEY }}
-            #       run: |
-            #         curl -sS --fail-with-body -X POST "$DD_URL/api/v2/reimport-scan/" \
-            #           -H "Authorization: Token $DD_API_KEY" \
-            #           -F "scan_type=Semgrep JSON Report" \
-            #           -F "file=@semgrep.json" \
-            #           -F "product_name=Study-Group-Manager" \
-            #           -F "engagement_name=CI" \
-            #           -F "test_title=Semgrep SAST" \
-            #           -F "product_type_name=Estudos" \                                        
-            #           -F "auto_create_context=true" \
-            #           -F "branch_tag=${{ github.ref_name }}" \
-            #           -F "commit_hash=${{ github.sha }}" \
-            #           -F "active=true" \
-            #           -F "verified=false" \
-            #           -F "close_old_findings=true"          
-            #
+  upload-dd:
+    name: Enviar para DefectDojo
+    needs: semgrep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar relatório
+        uses: actions/download-artifact@v4
+        with:
+          name: semgrep-report
+      - name: Importar no DefectDojo
+        env:
+          DD_URL: ${{ secrets.DD_URL }}
+          DD_API_KEY: ${{ secrets.DD_API_KEY }}
+        run: |
+          curl -sS --fail-with-body -X POST "$DD_URL/api/v2/reimport-scan/" \
+            -H "Authorization: Token $DD_API_KEY" \
+            -H "ngrok-skip-browser-warning: true" \
+            -F "scan_type=Semgrep JSON Report" \
+            -F "file=@semgrep.json" \
+            -F "product_type_name=Estudos" \
+            -F "product_name=Study-Group-Manager" \
+            -F "engagement_name=CI" \
+            -F "test_title=Semgrep SAST" \
+            -F "auto_create_context=true" \
+            -F "branch_tag=${{ github.ref_name }}" \
+            -F "commit_hash=${{ github.sha }}" \
+            -F "active=true" \
+            -F "verified=false" \
+            -F "close_old_findings=true"
+
   sbom:
-    name: SBOM (cdxgen)
+    name: SCA (cdxgen + Dependency-Track)
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -91,3 +92,15 @@ jobs:
         with:
           name: sbom
           path: bom.json
+          if-no-files-found: error
+      - name: Enviar SBOM ao Dependency-Track
+        env:
+          DT_URL: ${{ secrets.DT_URL }}
+          DT_API_KEY: ${{ secrets.DT_API_KEY }}
+        run: |
+          curl -sS --fail-with-body -X POST "$DT_URL/api/v1/bom" \
+            -H "X-Api-Key: $DT_API_KEY" \
+            -H "ngrok-skip-browser-warning: true" \
+            -F "projectName=Study Group" \
+            -F "projectVersion=v1" \
+            -F "bom=@bom.json"
